@@ -40,15 +40,10 @@ canvas.height = ROWS * SIZE;
 
 const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
 
-const piece = {
-  shape: [[1, 1, 1, 1, 1]],
-  x: 3,
-  y: 0,
-  color: "#0000ff",
-};
-
 let linesCleared = 0;
 let score = 0;
+
+let piece = randomPiece();
 
 function update() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -146,6 +141,16 @@ function clearLines(grid) {
   return cleared;
 }
 
+function randomPiece() {
+  const index = Math.floor(Math.random() * SHAPES.length);
+  return {
+    shape: SHAPES[index],
+    x: 3,
+    y: 0,
+    color: COLORS[index],
+  };
+}
+
 document.body.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft" && canMove(piece, grid, "left")) {
     piece.x--;
@@ -177,11 +182,12 @@ setInterval(() => {
     if (cleared === 4) score += 800;
 
     // Создаём новую фигуру сверху
-    piece.shape = [[1, 1, 1, 1, 1]];
-    piece.x = 3;
-    piece.y = 0;
-    piece.color = "red";
+    const newPiece = randomPiece();
+    piece.shape = newPiece.shape;
+    piece.x = newPiece.x;
+    piece.y = newPiece.y;
+    piece.color = newPiece.color;
   }
-}, 100);
+}, 500);
 
 //
