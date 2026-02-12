@@ -56,6 +56,46 @@ function update() {
   ctx.fillText("Score: " + score, 10, 20);
 }
 
+function rotate(piece) {
+  const newShape = [];
+  const height = piece.shape.length;
+
+  for (let row = 0; row < piece.shape.length; row++) {
+    for (let col = 0; col < piece.shape[row].length; col++) {
+      if (!newShape[col]) {
+        newShape[col] = [];
+      }
+      newShape[col][height - 1 - row] = piece.shape[row][col];
+      console.log(newShape);
+    }
+  }
+  piece.shape = newShape;
+  return piece;
+}
+
+function canRotate(piece, grid, newShape) {
+  for (let row = 0; row < newShape.length; row++) {
+    for (let col = 0; col < newShape[row].length; col++) {
+      if (newShape[row][col] === 1) {
+        const newX = piece.x + col;
+        const newY = piece.y + row;
+
+        // выход за границы
+        if (newX < 0 || newX >= COLS || newY >= ROWS) {
+          return false;
+        }
+
+        // столкновение с другими блоками
+        if (grid[newY][newX] !== -1) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 update();
 
 function drawGrid(grid) {
@@ -97,9 +137,10 @@ function canMove(piece, grid, direction) {
         let newX = x + col;
         if (direction === "left") newX -= 1;
         if (direction === "right") newX += 1;
-
-        // Проверка границ
-        if (newX < 0 || newX >= COLS) return false;
+        if (direction === "up")
+          if (newX < 0 || newX >= COLS)
+            // Проверка границ
+            return false;
 
         // Проверка на другие фигуры
         if (grid[y + row][newX] !== -1) return false;
@@ -144,7 +185,7 @@ function clearLines(grid) {
 function randomPiece() {
   const index = Math.floor(Math.random() * SHAPES.length);
   return {
-    shape: SHAPES[index],
+    shape: SHAPES[index].map((row) => [...row]),
     x: 3,
     y: 0,
     color: COLORS[index],
@@ -156,6 +197,16 @@ document.body.addEventListener("keydown", (event) => {
     piece.x--;
   } else if (event.key === "ArrowRight" && canMove(piece, grid, "right")) {
     piece.x++;
+  } else if (event.key === "ArrowUp") {
+    const oldShape = piece.shape;
+
+    // создаём копию и крутим её
+    const testPiece = { ...piece, shape: oldShape.map((r) => [...r]) };
+    rotate(testPiece);
+
+    if (canRotate(piece, grid, testPiece.shape)) {
+      piece.shape = testPiece.shape;
+    }
   }
 });
 
@@ -189,5 +240,3 @@ setInterval(() => {
     piece.color = newPiece.color;
   }
 }, 500);
-
-//
