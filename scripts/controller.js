@@ -38,17 +38,33 @@ const COLORS = ["#00f", "#ff0", "#f0f", "#0ff", "#f60", "#0f0", "#f00"];
 canvas.width = COLS * SIZE;
 canvas.height = ROWS * SIZE;
 
+// ❌ Исправлено: создаём по ROWS
 const grid = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
 
-let linesCleared = 0;
 let score = 0;
-
 let piece = randomPiece();
 
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+let lastTime = 0;
+let dropCounter = 0;
+const dropInterval = 500;
 
-  drawGrid(grid);
+function update(time = 0) {
+  const deltaTime = time - lastTime;
+  lastTime = time;
+
+  dropCounter += deltaTime;
+  if (dropCounter > dropInterval) {
+    movePieceDown();
+    dropCounter = 0;
+  }
+
+  draw();
+  requestAnimationFrame(update);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
   drawPiece(piece);
 
   ctx.fillStyle = "white";
@@ -56,66 +72,19 @@ function update() {
   ctx.fillText("Score: " + score, 10, 20);
 }
 
-function rotate(piece) {
-  const newShape = [];
-  const height = piece.shape.length;
-
-  for (let row = 0; row < piece.shape.length; row++) {
-    for (let col = 0; col < piece.shape[row].length; col++) {
-      if (!newShape[col]) {
-        newShape[col] = [];
-      }
-      newShape[col][height - 1 - row] = piece.shape[row][col];
-      console.log(newShape);
-    }
-  }
-  piece.shape = newShape;
-  return piece;
-}
-
-function canRotate(piece, grid, newShape) {
-  for (let row = 0; row < newShape.length; row++) {
-    for (let col = 0; col < newShape[row].length; col++) {
-      if (newShape[row][col] === 1) {
-        const newX = piece.x + col;
-        const newY = piece.y + row;
-
-        // выход за границы
-        if (newX < 0 || newX >= COLS || newY >= ROWS) {
-          return false;
-        }
-
-        // столкновение с другими блоками
-        if (grid[newY][newX] !== -1) {
-          return false;
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
-update();
-
-function drawGrid(grid) {
-  for (let i = 0; i < grid.length; i++) {
-    for (let j = 0; j < grid[i].length; j++) {
-      if (grid[i][j] == -1) {
-        ctx.fillStyle = "#111";
-      } else {
-        ctx.fillStyle = grid[i][j];
-      }
-      ctx.fillRect(j * SIZE, i * SIZE, SIZE, SIZE);
+function drawGrid() {
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      ctx.fillStyle = grid[row][col] === -1 ? "#111" : grid[row][col];
+      ctx.fillRect(col * SIZE, row * SIZE, SIZE, SIZE);
       ctx.strokeStyle = "#222";
-      ctx.strokeRect(j * SIZE, i * SIZE, SIZE, SIZE);
+      ctx.strokeRect(col * SIZE, row * SIZE, SIZE, SIZE);
     }
   }
 }
 
-function drawPiece(piece) {
-  const { shape, x, y, color } = piece;
-
+function drawPiece(p) {
+  const { shape, x, y, color } = p;
   for (let row = 0; row < shape.length; row++) {
     for (let col = 0; col < shape[row].length; col++) {
       if (shape[row][col] === 1) {
@@ -128,57 +97,52 @@ function drawPiece(piece) {
   }
 }
 
-function canMove(piece, grid, direction) {
-  const { shape, x, y } = piece;
-
-  for (let row = 0; row < shape.length; row++) {
-    for (let col = 0; col < shape[row].length; col++) {
-      if (shape[row][col] === 1) {
-        let newX = x + col;
-        if (direction === "left") newX -= 1;
-        if (direction === "right") newX += 1;
-        if (direction === "up")
-          if (newX < 0 || newX >= COLS)
-            // Проверка границ
-            return false;
-
-        // Проверка на другие фигуры
-        if (grid[y + row][newX] !== -1) return false;
-      }
-    }
-  }
-
-  return true; // если нет препятствий, двигаться можно
-}
-
-function canMoveDown(piece, grid) {
-  const { shape, x, y } = piece;
-
+function canMoveDown(p) {
+  const { shape, x, y } = p;
   for (let row = 0; row < shape.length; row++) {
     for (let col = 0; col < shape[row].length; col++) {
       if (shape[row][col] === 1) {
         if (y + row + 1 >= ROWS) return false;
-
         if (grid[y + row + 1][x + col] !== -1) return false;
       }
     }
   }
-
-  return true; // Двигаться вниз можно
+  return true;
 }
 
-function clearLines(grid) {
-  let cleared = 0; // живёт только внутри функции
+function movePieceDown() {
+  if (canMoveDown(piece)) {
+    piece.y++;
+  } else {
+    fixPiece();
+    piece = randomPiece();
+  }
+}
 
-  for (let row = 0; row < grid.length; row++) {
-    if (grid[row].every((cell) => cell !== -1)) {
-      grid.splice(row, 1);
-      grid.unshift(new Array(COLS).fill(-1));
-      cleared++;
-      row--;
+function fixPiece() {
+  const { shape, x, y, color } = piece;
+  for (let row = 0; row < shape.length; row++) {
+    for (let col = 0; col < shape[row].length; col++) {
+      if (shape[row][col] === 1) grid[y + row][x + col] = color;
     }
   }
+  const cleared = clearLines();
+  if (cleared === 1) score += 100;
+  if (cleared === 2) score += 300;
+  if (cleared === 3) score += 500;
+  if (cleared === 4) score += 800;
+}
 
+function clearLines() {
+  let cleared = 0;
+  for (let row = ROWS - 1; row >= 0; row--) {
+    if (grid[row].every((cell) => cell !== -1)) {
+      grid.splice(row, 1);
+      grid.unshift(Array(COLS).fill(-1));
+      cleared++;
+      row++; // проверяем новую строку на этом же индексе
+    }
+  }
   return cleared;
 }
 
@@ -192,51 +156,52 @@ function randomPiece() {
   };
 }
 
+// обработка клавиш
 document.body.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft" && canMove(piece, grid, "left")) {
-    piece.x--;
-  } else if (event.key === "ArrowRight" && canMove(piece, grid, "right")) {
-    piece.x++;
-  } else if (event.key === "ArrowUp") {
-    const oldShape = piece.shape;
-
-    // создаём копию и крутим её
-    const testPiece = { ...piece, shape: oldShape.map((r) => [...r]) };
-    rotate(testPiece);
-
-    if (canRotate(piece, grid, testPiece.shape)) {
-      piece.shape = testPiece.shape;
-    }
+  if (event.key === "ArrowLeft" && canMove(piece, "left")) piece.x--;
+  if (event.key === "ArrowRight" && canMove(piece, "right")) piece.x++;
+  if (event.key === "ArrowDown") movePieceDown();
+  if (event.key === "ArrowUp") {
+    const newShape = rotatePiece(piece);
+    if (canRotate(piece, newShape)) piece.shape = newShape;
   }
 });
 
-setInterval(() => {
-  update();
-
-  if (canMoveDown(piece, grid)) {
-    piece.y++; // фигура падает
-  } else {
-    // Фиксируем фигуру в сетке
-    const { shape, x, y, color } = piece;
-    for (let row = 0; row < shape.length; row++) {
-      for (let col = 0; col < shape[row].length; col++) {
-        if (shape[row][col] === 1) {
-          grid[y + row][x + col] = color;
-        }
+function canMove(p, dir) {
+  const { shape, x, y } = p;
+  let offsetX = dir === "left" ? -1 : dir === "right" ? 1 : 0;
+  for (let row = 0; row < shape.length; row++)
+    for (let col = 0; col < shape[row].length; col++)
+      if (shape[row][col] === 1) {
+        const newX = x + col + offsetX;
+        if (newX < 0 || newX >= COLS) return false;
+        if (grid[y + row][newX] !== -1) return false;
       }
+  return true;
+}
+
+function rotatePiece(p) {
+  const newShape = [];
+  const H = p.shape.length;
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < p.shape[r].length; c++) {
+      if (!newShape[c]) newShape[c] = [];
+      newShape[c][H - 1 - r] = p.shape[r][c];
     }
-    const cleared = clearLines(grid);
+  return newShape;
+}
 
-    if (cleared === 1) score += 100;
-    if (cleared === 2) score += 300;
-    if (cleared === 3) score += 500;
-    if (cleared === 4) score += 800;
+function canRotate(p, newShape) {
+  const { x, y } = p;
+  for (let row = 0; row < newShape.length; row++)
+    for (let col = 0; col < newShape[row].length; col++)
+      if (newShape[row][col] === 1) {
+        const newX = x + col;
+        const newY = y + row;
+        if (newX < 0 || newX >= COLS || newY >= ROWS) return false;
+        if (grid[newY][newX] !== -1) return false;
+      }
+  return true;
+}
 
-    // Создаём новую фигуру сверху
-    const newPiece = randomPiece();
-    piece.shape = newPiece.shape;
-    piece.x = newPiece.x;
-    piece.y = newPiece.y;
-    piece.color = newPiece.color;
-  }
-}, 500);
+update();
